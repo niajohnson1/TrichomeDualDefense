@@ -1,0 +1,187 @@
+##Analysis of Constitutive Trichomes in Growth Room 
+
+```{r}
+#Load data
+GC2018 = read.csv("~/Desktop/Chapter 2/VL Growth Room Data.csv", fill = TRUE)
+GC2018$POP <- as.factor(GC2018$POP)
+GC2018$ML <- as.factor(GC2018$MLID)
+GC2018$TRT <- as.factor(GC2018$TRT)
+GC2018$ID <- as.factor(GC2018$ID)
+```
+
+```{r Load packages}
+#Load packages
+library(dplyr)
+library(plyr)
+library(lme4)
+library(lmerTest)
+library(PerformanceAnalytics)
+library(ggplot2)
+```
+
+```{r Trichome Calculations}
+#Trichome Traits
+GC2018$Density = GC2018$Branched + GC2018$Single + GC2018$Capitate + GC2018$Peltate
+GC2018$BranchedPer = GC2018$Branched/ GC2018$Density
+GC2018$SinglePer = GC2018$Single/ GC2018$Density
+GC2018$CapitatePer = GC2018$Capitate/ GC2018$Density
+GC2018$PeltatePer = GC2018$Peltate/ GC2018$Density
+GC2018$LengthAvg = GC2018$Length / GC2018$Density 
+GC2018$Evenness = - ((GC2018$BranchedPer * log(GC2018$BranchedPer + 0.001)) + 
+                       (GC2018$SinglePer * log(GC2018$SinglePer + 0.001)) + 
+                       (GC2018$CapitatePer * log(GC2018$CapitatePer + 0.001)) +
+                       (GC2018$PeltatePer * log(GC2018$PeltatePer + 0.001))) / log(4) 
+
+
+```
+
+```{r Relative Fitness}
+#Standardize biomass by the controls 
+Controls <- subset (GC2018, TRT == 0)
+ControlBiomass_ <- ddply(Controls, .(ML), summarise, 
+                       meanBiomass=mean(Biomass, na.rm=TRUE))
+GC2018 <- merge(ControlBiomass_, GC2018, by = "ML")
+GC2018$StandardBiomass =  GC2018$Biomass / GC2018$meanBiomass  
+
+GC2018$StandBiomassTrans <- (log (1 + GC2018$StandardBiomass))
+
+#Subset TRTs
+T550 = subset(GC2018, TRT%in%c("550"))
+Y2019 = subset(Dicamba, Year%in%c("2019"))
+
+```
+
+```{r Genetic Variation}
+#Genetic Variation for Herbicide Resistance 
+GR_Variation <-lmer(StandBiomassTrans ~ TRT + (1|POP/MLID), data = GC2018, na.action = na.exclude)
+summary(GR_Variation)
+ranova(GR_Variation) #sig population effect 0.03
+
+GR_Variation <-lmer(Density ~ (1|POP/MLID), data = GC2018, na.action = na.exclude)
+summary(GR_Variation)
+ranova(GR_Variation) 
+
+GR_Variation <-lmer(BranchedPer ~ (1|POP/MLID), data = GC2018, na.action = na.exclude) 
+summary(GR_Variation)
+ranova(GR_Variation) #marginally sig ML effect 0.07
+
+GR_Variation <-lmer(SinglePer ~ (1|POP/MLID), data = GC2018, na.action = na.exclude) 
+summary(GR_Variation)
+ranova(GR_Variation) #sig POP effect 0.004 
+
+GR_Variation <-lmer(CapitatePer ~ (1|POP/MLID), data = GC2018, na.action = na.exclude) 
+summary(GR_Variation)
+ranova(GR_Variation) 
+
+GR_Variation <-lmer(PeltatePer ~ (1|POP/MLID), data = GC2018, na.action = na.exclude) 
+summary(GR_Variation)
+ranova(GR_Variation) #sig POP effect 0.01 
+
+GR_Variation <-lmer(Evenness ~ (1|POP/MLID), data = GC2018, na.action = na.exclude) 
+summary(GR_Variation)
+ranova(GR_Variation)
+
+GR_Variation <-lmer(LengthAvg ~ (1|POP/MLID), data = GC2018, na.action = na.exclude) 
+summary(GR_Variation)
+ranova(GR_Variation)
+
+
+```
+
+```{r Correlations}
+#Population Averages
+GR_Trichomes <- ddply(GC2018, .(POP), summarise, 
+                      meanDensity=mean(Density, na.rm=TRUE))
+
+GC2018 <- merge(GR_Trichomes, GC2018, by = "POP")
+
+#Genetic Correlations
+GR_Trichomes <- ddply(Controls, .(ML), summarise, 
+                      meanDensity=mean(Density, na.rm=TRUE),
+                      meanBranched=mean(BranchedPer, na.rm=TRUE),
+                      meanSingle=mean(SinglePer, na.rm=TRUE),
+                      meanCapitate=mean(CapitatePer, na.rm=TRUE),
+                      meanPeltate=mean(PeltatePer, na.rm=TRUE),
+                      meanLength=mean(Length, na.rm=TRUE),
+                      meanEvenness=mean(Evenness, na.rm=TRUE))
+
+GC2018_ <- merge(GR_Trichomes, GC2018, by = "ML")
+
+GR_Biomass <- ddply(GC2018, .(ML, TRT), summarise, 
+                      meanStandBiomass=mean(StandardBiomass, na.rm=TRUE))
+
+GC <- merge(GR_Trichomes, GR_Biomass, by = "ML")
+
+#Subset for 550
+T550<- subset (GC, TRT == 550)
+
+#Correlations
+GR_corr <- T550 [, c("meanDensity", "meanBranched", "meanSingle", "meanCapitate", "meanPeltate", "meanLength","meanEvenness", "meanStandBiomass")]
+
+chart.Correlation(GR_corr)
+
+```
+
+```{r Herbicide Resistance modeled as Biomass }
+
+#Transformed for normality 
+StandBiomass <- transformTukey(T550$meanStandBiomass)
+
+GR_HerbRes_Density <-lm(StandBiomass ~  meanDensity, data = T550, na.action = na.exclude)
+anova(GR_HerbRes_Density)
+summary(GR_HerbRes_Density)
+
+GR_HerbRes_Branched <-lm(StandBiomass ~ meanBranched, data = T550, na.action = na.exclude)
+anova(GR_HerbRes_Branched)
+summary(GR_HerbRes_Branched)
+
+GR_HerbRes_Single<-lm(StandBiomass ~ meanSingle, data = T550, na.action = na.exclude)
+anova(GR_HerbRes_Single)
+summary(GR_HerbRes_Single)
+
+GR_HerbRes_Capitate<-lm(StandBiomass ~ meanCapitate, data = T550, na.action = na.exclude)
+anova(GR_HerbRes_Capitate)
+summary(GR_HerbRes_Capitate)
+
+GR_HerbRes_Peltate<-lm(StandBiomass ~ meanPeltate, T550, na.action = na.exclude)
+anova(GR_HerbRes_Peltate)
+summary(GR_HerbRes_Peltate)
+
+GR_HerbRes_Length<-lm(StandBiomass ~ meanLength, data = T550, na.action = na.exclude)
+anova(GR_HerbRes_Length)
+summary(GR_HerbRes_Length)
+
+GR_HerbRes_Evenness<-lm(StandBiomass ~ meanEvenness, data = T550, na.action = na.exclude)
+anova(GR_HerbRes_Evenness)
+summary(GR_HerbRes_Evenness)
+
+```
+
+```{r Figures}
+
+ggplot(T550, aes(x=meanDensity, y=StandBiomass)) +
+  geom_point(alpha = 0.3,  size = 2.5, position = position_jitter()) + stat_smooth(method = "lm", size = 1, colour = "black", se=FALSE, fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance") + xlab("Density")
+
+ggplot(T550, aes(x=meanBranched, y=StandBiomass)) +
+  geom_point(alpha = 0.3,  size = 2.5, position = position_jitter()) + stat_smooth(method = "lm", size = 1, colour = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance") + xlab("Branched (%)")
+
+ggplot(T550, aes(x=meanSingle, y=StandBiomass)) +
+  geom_point(alpha = 0.3,  size = 2.5, position = position_jitter()) + stat_smooth(method = "lm", size = 1, colour = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance")+ xlab("Single (%)")
+
+ggplot(T550, aes(x=meanCapitate, y=StandBiomass)) +
+  geom_point(alpha = 0.3,  size = 2.5, position = position_jitter()) + stat_smooth(method = "lm", size = 1, colour = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance")+ xlab("Capitate (%)")
+
+ggplot(T550, aes(x=meanPeltate, y=StandBiomass)) +
+  geom_point(alpha = 0.3,  size = 2.5, position = position_jitter()) + stat_smooth(method = "lm", size = 1, colour = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance")+ xlab("Peltate (%)")
+
+ggplot(T550, aes(x=meanLength, y=StandBiomass)) +
+  geom_point(alpha = 0.3,  size = 2.5, position = position_jitter()) + stat_smooth(method = "lm", size = 1, colour = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance")+ xlab("Average Length")
+
+ggplot(T550, aes(x=meanEvenness, y=StandBiomass)) +
+  geom_point(alpha = 0.3,  size = 2.5, position = position_jitter()) + stat_smooth(method = "lm", size = 1, colour = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance")+ xlab("Evenness")
+
+#Density by Population 
+ggplot(GC2018, aes(x=POP, y=Density)) +
+  geom_boxplot(alpha = 0.4) + geom_point(alpha = 0.4,  size = 1, position = position_jitter()) + theme_bw(base_size = 15) + xlab("Population") + ylab("Trichome Density") 
+
+```
