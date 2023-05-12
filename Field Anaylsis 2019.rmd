@@ -1,0 +1,287 @@
+##Analysis of Induced Trichomes in the Field 
+
+```{r Load data}
+Gly2019 = read.csv("~/Desktop/Chapter 2/Glyphosate2019!_.csv")
+Gly2019$POP <- as.factor(Gly2019$POP)
+Gly2019$ML <- as.factor(Gly2019$ML)
+Gly2019$TRT <- as.factor(Gly2019$TRT)
+Gly2019$BLK <- as.factor(Gly2019$BLK)
+Gly2019$ID <- as.factor(Gly2019$ID)
+Gly2019$Environment <- as.factor(Gly2019$Environment)
+```
+
+```{r Load packages}
+library(dplyr)
+library(plyr)
+library(lme4)
+library(lmerTest)
+library(PerformanceAnalytics)
+library(tidyverse)
+library(fields)
+
+```
+
+```{r Added Calculations}
+#Trichome Traits 
+Gly2019$Density = Gly2019$Branched + Gly2019$Single + Gly2019$Capitate + Gly2019$Peltate
+Gly2019$BranchedPer = Gly2019$Branched/ Gly2019$Density
+Gly2019$SinglePer = Gly2019$Single/ Gly2019$Density
+Gly2019$CapitatePer = Gly2019$Capitate/ Gly2019$Density
+Gly2019$PeltatePer = Gly2019$Peltate/ Gly2019$Density
+Gly2019$LengthAvg = Gly2019$Length / Gly2019$Density 
+Gly2019$Evenness = - ((Gly2019$BranchedPer * log(Gly2019$BranchedPer + 0.001)) + 
+                       (Gly2019$SinglePer * log(Gly2019$SinglePer + 0.001)) + 
+                       (Gly2019$CapitatePer * log(Gly2019$CapitatePer + 0.001)) +
+                       (Gly2019$PeltatePer * log(Gly2019$PeltatePer + 0.001))) / log(4)
+
+#Herbivory and Herbicide Resistance
+
+Gly2019$HerbRes1 = 1- Gly2019$PerDamage1
+Gly2019$HerbRes2 = 1- Gly2019$PerDamage2
+
+```
+
+```{r Herbivory measurements}
+
+Gly2019$HerbivoryRes = 1  - log10(Gly2019$Herbivory)
+Gly2019$Herbivory <- ifelse(is.infinite(Gly2019$Herbivory), 0, Gly2019$Herbivory)
+```
+
+```{r Relative Fitness Caluculations}
+
+Fitness_ <- ddply(Gly2019, .(TRT), summarise, 
+                       meanFitness=mean(Seed.Count, na.rm=TRUE))
+Gly2019 <- merge(Fitness_, Gly2019, by = "TRT")
+
+Gly2019$RelFitness = Gly2019$Seed.Count/ Gly2019$meanFitness 
+
+```
+
+```{r Removal of Block Effects} 
+#Trichomes
+Gly2019$BranchedRes <- residuals(lm(BranchedPer ~ BLK, data = Gly2019, na.action = na.exclude))
+Gly2019$SingleRes <- residuals(lm(SinglePer ~ BLK, data = Gly2019, na.action = na.exclude))
+Gly2019$CapitateRes <- residuals(lm(CapitatePer ~ BLK, data = Gly2019, na.action = na.exclude))
+Gly2019$PeltateRes <- residuals(lm(PeltatePer ~ BLK, data = Gly2019, na.action = na.exclude))
+Gly2019$DensityRes <- residuals(lm(Density ~ BLK, data = Gly2019, na.action = na.exclude))
+Gly2019$EvennessRes <- residuals(lm(Evenness ~ BLK, data = Gly2019, na.action = na.exclude))
+Gly2019$LengthRes <- residuals(lm(LengthAvg ~ BLK, data = Gly2019, na.action = na.exclude))
+
+
+#Herbivory and Herbicide Resistance
+
+Gly2019$HerbicideRes <- residuals(lm(HerbRes2 ~ BLK, data = Gly2019, na.action = na.exclude))
+Gly2019$HerbicideRes2 <- residuals(lm(HerbRes1 ~ BLK, data = Gly2019, na.action = na.exclude))
+#RelativeFitness
+Gly2019$Fit <- residuals(lm(RelFitness ~ BLK, data = Gly2019, na.action = na.exclude))
+
+```
+
+```{r Subsets}
+#Phenotypes
+T0 = subset(Gly2019, TRT%in%c("0"))
+T2 = subset(Gly2019, TRT%in%c("2"))
+
+#Subset Trt
+T0_2 = subset(Gly2019, TRT%in%c("0", "2")) #Phenotypes
+
+```
+
+```{r Genetic Variation for Trichome Traits}
+
+
+F_Variation <-lmer(BranchedRes ~ TRT + (1|POP/ML), data = Gly2019, na.action = na.exclude)
+anova(F_Variation)
+rand(F_Variation)
+
+F_Variation <-lmer(SingleRes ~ TRT + (1|POP/ML), data = Gly2019, na.action = na.exclude)
+anova(F_Variation)
+rand(F_Variation)
+
+F_Variation <-lmer(CapitateRes ~ TRT +  (1|POP/ML), data = Gly2019, na.action = na.exclude)
+anova(F_Variation)
+ranova(F_Variation)
+
+F_Variation <-lmer(PeltateRes ~ TRT +  (1|POP/ML), data = Gly2019, na.action = na.exclude)
+anova(F_Variation)
+ranova(F_Variation)
+
+F_Variation <-lmer(DensityRes ~ TRT + (1|POP/ML), data = Gly2019, na.action = na.exclude)
+anova(F_Variation)
+ranova(F_Variation)
+
+
+```
+
+```{r Standardizing Trichome Traits}
+Gly2019$BranchedResStand<-(Gly2019$BranchedRes-mean(Gly2019$BranchedRes,na.rm=TRUE))/sd(Gly2019$BranchedRes, na.rm=TRUE)
+Gly2019$DensityResStand<-(Gly2019$DensityRes-mean(Gly2019$DensityRes,na.rm=TRUE))/sd(Gly2019$DensityRes, na.rm=TRUE)
+Gly2019$CapitateResStand<-(Gly2019$CapitateRes-mean(Gly2019$CapitateRes,na.rm=TRUE))/sd(Gly2019$CapitateRes, na.rm=TRUE)
+```
+
+```{r Modeling Herbicide Resistance}
+#Herbicide Resistance
+F_HerbRes_Density <-lm(HerbRes2  ~ DensityRes , data = Gly2019 , na.action = na.exclude)
+anova(F_HerbRes_Density)
+
+
+F_HerbRes_Branched <-lm(HerbRes2  ~ BranchedRes , data = Gly2019, na.action = na.exclude)
+anova(F_HerbRes_Branched)
+
+
+F_HerbRes_Capitate <-lm(HerbRes2  ~ CapitateRes , data = Gly2019, na.action = na.exclude)
+anova(F_HerbRes_Capitate)
+
+```
+
+```{r Modeling Herbivory Resistance}
+#Herbivory Resistance
+F_HerbRes_Density <-lm(Herbivory ~ DensityRes, data = Gly2019 , na.action = na.exclude)
+anova(F_HerbRes_Density)
+summary(F_HerbRes_Density)
+
+F_HerbRes_Density <-lm(Herbivory ~ BranchedRes, data = Gly2019 , na.action = na.exclude)
+anova(F_HerbRes_Density)
+
+
+F_HerbRes_Capitate <-lm(Herbivory  ~ CapitateRes, data = Gly2019, na.action = na.exclude)
+anova(F_HerbRes_Capitate)
+summary(F_HerbRes_Capitate)
+```
+
+```{r Phenotypic Correlations with Block Removed}
+#Trichome Traits
+cor.test(T0_2$Branched, T0_2$Density)
+cor.test(T0_2$Branched, T0_2$Peltate)
+cor.test(T0_2$Single,T0_2$Peltate)
+cor.test(T0_2$Single,T0_2$Density)
+cor.test(T0_2$Peltate,T0_2$Density)
+
+
+#Trichome Traits and Herbicide Resistance
+cor.test(Gly2019$BranchedRes, Gly2019$HerbicideRes)
+cor.test(Gly2019$SingleRes, Gly2019$HerbicideRes)
+cor.test(Gly2019$CapitateRes, Gly2019$HerbicideRes)
+cor.test(Gly2019$PeltateRes, Gly2019$HerbicideRes)
+cor.test(Gly2019$DensityRes, Gly2019$HerbicideRes)
+cor.test(Gly2019$EvennessRes, Gly2019$HerbicideRes)
+cor.test(Gly2019$LengthRes, Gly2019$HerbicideRes)
+cor.test(Gly2019$Fit, Gly2019$HerbicideRes)
+
+#Trichome Traits and Herbivory Resistance
+
+cor.test(T0$BranchedRes, T0$HerbivoryRes)
+cor.test(T0$SingleRes, T0$HerbivoryRes)
+cor.test(T0$CapitateRes, T0$HerbivoryRes)
+cor.test(T0$PeltateRes, T0$HerbivoryRes)
+cor.test(T0$DensityRes,T0$HerbivoryRes)
+cor.test(T0$EvennessRes, T0$HerbivoryRes)
+cor.test(T0$LengthRes, T0$HerbivoryRes)
+
+cor.test(T2$BranchedRes, T2$HerbivoryRes)
+cor.test(T2$SingleRes, T2$HerbivoryRes)
+cor.test(T2$CapitateRes, T2$HerbivoryRes)
+cor.test(T2$PeltateRes, T2$HerbivoryRes)
+cor.test(T2$DensityRes,T2$HerbivoryRes)
+cor.test(T2$EvennessRes, T2$HerbivoryRes)
+cor.test(T2$LengthRes, T2$HerbivoryRes)
+cor.test(T2$HerbicideRes, T2$HerbivoryRes)
+
+```
+
+```{r Trait by TRT Effect on Selection Differentials}
+
+#Differentials Without BLK
+
+F_Fit_Branched <-lm(Fit ~ BranchedResStand*TRT, data =T0_2, na.action = na.exclude)
+anova(F_Fit_Branched)
+summary(F_Fit_Branched)
+
+F_Fit_Density<-lm(Fit  ~ CapitateResStand*TRT, data = T0_2, na.action = na.exclude)
+anova(F_Fit_Density)
+summary(F_Fit_Density)
+
+F_Fit_Density<-lm(Fit  ~ DensityResStand*TRT, data = T0_2, na.action = na.exclude)
+anova(F_Fit_Density)
+summary(F_Fit_Density)
+
+
+```
+
+```{r Trait by TRT Effect on Linear Selection Gradients}
+#With BLK 
+
+F_Fit <-lm(Fit ~ BranchedResStand*TRT + DensityResStand*TRT + CapitateResStand*TRT, data =Gly2019, na.action = na.exclude)
+anova(F_Fit)
+
+```
+
+```{r Trait by TRT Effect on Quadratic Selection Gradients}
+#With BLK 
+F_Fit <-lm(Fit ~ ((BranchedResStand  + I(BranchedResStand ^2)) *TRT) * ((DensityResStand+ I(DensityResStand^2)) *TRT) * ((CapitateResStand + I(CapitateResStand^2)) * TRT), data = Gly2019, na.action = na.exclude)
+anova(F_Fit)
+
+
+
+```
+
+```{r Phenotypic Selection Differentials}
+
+#Fitness in Herbicide Treatment
+
+F_Fit_Branched <-lm(Fit ~  BranchedResStand, data =T0, na.action = na.exclude)
+anova(F_Fit_Branched)
+summary(F_Fit_Branched)
+
+F_Fit_Capitate<-lm(Fit ~ CapitateResStand, data =T0 , na.action = na.exclude)
+anova(F_Fit_Capitate)
+summary(F_Fit_Capitate)
+
+F_Fit_Density<-lm(Fit ~ DensityResStand, data =T0 , na.action = na.exclude)
+anova(F_Fit_Density)
+summary(F_Fit_Density)
+
+
+#Fitness in Herbicide Treatment
+
+F_Fit_Branched <-lm(Fit ~ BranchedResStand, data =T2, na.action = na.exclude)
+anova(F_Fit_Branched)
+summary(F_Fit_Branched)
+
+F_Fit_Capitate<-lm(Fit ~ CapitateResStand, data =T2 , na.action = na.exclude)
+anova(F_Fit_Capitate)
+summary(F_Fit_Capitate)
+
+F_Fit_Single<-lm(Fit ~  DensityResStand,   data = T2 , na.action = na.exclude)
+anova(F_Fit_Single)
+summary(F_Fit_Single)
+
+```
+
+```{r Phenotypic Linear Selection Gradients}
+
+#Control
+F_Fit <-lm(Fit ~ BranchedResStand + DensityResStand + CapitateResStand, data =T0, na.action = na.exclude)
+anova(F_Fit)
+summary(F_Fit)
+
+#Glyphosate
+F_Fit <-lm(Fit ~ BranchedResStand + DensityResStand + CapitateResStand, data =T2, na.action = na.exclude)
+anova(F_Fit)
+summary(F_Fit)
+
+```
+
+```{r Phenotypic Quadratic Selection Gradients}
+
+#Control
+F_Fit <-lm(Fit ~ (BranchedResStand + I(BranchedResStand^2)) * (DensityResStand + I(DensityResStand^2)) * (CapitateResStand + I(CapitateResStand^2)), data =T0, na.action = na.exclude)
+summary(F_Fit)
+
+
+#Glyphosate
+F_Fit <-lm(Fit ~ (BranchedResStand + I(BranchedResStand^2)) * (DensityResStand + I(DensityResStand^2)) * (CapitateResStand + I(CapitateResStand^2)), data =T2, na.action = na.exclude)
+summary(F_Fit)
+
+```
+

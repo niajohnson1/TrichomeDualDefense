@@ -1,0 +1,49 @@
+---
+title: "TrichomeDualDefense Figs"
+output: html_document
+date: "2023-05-12"
+---
+
+```{r Load package}
+library(ggplot2)
+```
+
+``````{r Correlations}
+#Correlations with herbicide resistance
+p1<- ggplot(T2, aes(x=BranchedPer, y=HerbRes1)) +
+  geom_point(alpha = 0.3,  size = 4, position = position_jitter()) + stat_smooth(method = "lm", size = 1.5, color = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbicide Resistance") + ylim(0,0.75) + xlab("Proportion Branched Trichomes")   
+
+p2 <- ggplot(T2, aes(x=CapitatePer, y=HerbRes1)) +
+  geom_point(alpha = 0.3,  size = 4, position = position_jitter()) + stat_smooth(method = "lm", size = 1.5, color = "black", se=FALSE,  fullrange = TRUE, linetype = "dashed") + theme_classic(base_size = 20) + ylab("Herbicide Resistance") + ylim(0,0.75) + xlim(0,0.21)+ xlab("Proportion Capitate Trichomes") 
+
+p3 <- ggplot(T2, aes(x=Density, y=HerbRes1)) +
+  geom_point(alpha = 0.3,  size = 4, position = position_jitter()) + stat_smooth(method = "lm", size = 1.5, color = "black", se=FALSE,  fullrange = TRUE, linetype = "dashed") + theme_classic(base_size = 20) + ylab("Herbicide Resistance") + ylim(0,0.75) + xlab("Total Trichome Density")
+
+#Correlations with herbivory resistance
+p4 <- ggplot(T0_2, aes(x=BranchedPer, y=Herbivory)) +
+  geom_point(alpha = 0.3,  size = 4, position = position_jitter()) + stat_smooth(method = "lm", size = 1.5, color = "black", se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 20) + ylab("Herbivory Resistance") + xlab("Proportion Branched Trichomes") 
+
+p5 <- ggplot(T0_2, aes(x=CapitatePer, y=Herbivory)) +
+  geom_point(alpha = 0.3,  size = 4, position = position_jitter()) + stat_smooth(method = "lm", size = 1.5, color = "black", se=FALSE,  fullrange = TRUE, linetype = "dashed") + theme_classic(base_size = 20) + ylab("Herbivory Resistance") + xlab("Proportion Capitate Trichomes") 
+
+p6 <- ggplot(T0_2, aes(x=Density, y=Herbivory)) +
+  geom_point(alpha = 0.3,  size = 4, position = position_jitter()) + stat_smooth(method = "lm", size = 1.5, color = "black", se=FALSE,  fullrange = TRUE, linetype = "dashed") + theme_classic(base_size = 20) + ylab("Herbivory Resistance") + xlab("Total Trichome Density") 
+
+#Combine graphs
+
+p1 + p4/ p2+p5 / p3 +p6
+```
+
+```{r Fitness}
+#Fitness
+
+ggplot(T0_2, aes(x=DensityResStand, y=RelFitness, color = TRT, linetype = TRT)) +
+  geom_point(alpha = 1,  size = 3, position = position_jitter()) + geom_smooth(method = "lm", size = 1, se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 18) + ylab("Relative Fitness") + xlab("Total Trichome Density") + scale_color_manual(values = c("black", "grey")) + scale_linetype_manual(values=c( "solid", "dashed")) + ylim(0,8)
+
+ggplot(T0_2, aes(x=BranchedResStand, y=RelFitness, color = TRT, linetype = TRT)) +
+  geom_point(alpha = 1,  size = 3, position = position_jitter()) + geom_smooth(method = "lm", size = 1, se=FALSE,  fullrange = TRUE) + theme_classic(base_size = 18) + ylab("Relative Fitness") + xlab("Proportion Branched Trichomes") + scale_color_manual(values = c("black", "grey")) + scale_linetype_manual(values=c("solid", "solid")) + ylim(0,8)
+
+ggplot(T0_2, aes(x=CapitateResStand, y=RelFitness, color = TRT)) +
+  geom_point(alpha = 1,  size = 3, position = position_jitter()) + stat_smooth(method = "lm", size = 1, se=FALSE,  fullrange = TRUE, linetype = "dashed") + theme_classic(base_size = 18) + ylab("Relative Fitness") + xlab("Proportion Capitate Trichomes") + scale_color_manual(values = c("black", "grey")) + ylim(0,8)
+```
+```
